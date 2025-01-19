@@ -19,20 +19,19 @@ resource "aws_iam_role" "lambda_role" {
   name = "cost_tuuti_lambda_role"  # IAMロールの名前
 
   # 信頼ポリシー：誰がこのロールを使えるか
-  assume_role_policy = jsonencode({　#jsoncodeはお決まりの言葉
+  assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"　#一時的に許可する的な感じ
+      Action = "sts:AssumeRole"
       Effect = "Allow"
       Principal = {
-        Service = "lambda.amazonaws.com"　#だいたいどのサービスも〇〇.amazonaws.comと記載
+        Service = "lambda.amazonaws.com"
       }
     }]
   })
 }
 
 # Lambda用のポリシーをIAMロールにアタッチ　
-#ポリシーにより、「costexplorerにアクセス可能」　の部分が定義される　ロールとポリシー合体で完成
 resource "aws_iam_role_policy" "lambda_policy" {
   name = "cost_notification_lambda_policy"
   role = aws_iam_role.lambda_role.id  # 先ほど作ったロールを参照
@@ -52,7 +51,7 @@ resource "aws_iam_role_policy" "lambda_policy" {
       {
         Effect = "Allow"
         Action = [
-          "logs:CreateLogGroup",　#cloudwatchログの権限を付与して、エラーおきてもログ見れるようにする
+          "logs:CreateLogGroup",
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
@@ -69,7 +68,8 @@ resource "aws_lambda_function" "cost_notification" {
   role            = aws_iam_role.lambda_role.arn  # 先ほど作成したIAMロールのARN
   handler         = "lambda_function.lambda_handler"  # 実行する関数の指定
   runtime         = "python3.9"                 # Pythonのバージョン
-
+  memory_size     = 256
+  timeout         = 10
   environment {
     variables = {
       SLACK_WEBHOOK_URL = var.slack_webhook_url  # Slack WebhookのURL（後で変数として定義）
