@@ -14,43 +14,45 @@ terraform {
 }
 
 # Lambda用のIAMロールの作成
+#ゴールはlambdaにcostexplorerアクセスの許可を与える事。ここでは「lambdaがなんかする」と定義
 resource "aws_iam_role" "lambda_role" {
   name = "cost_tuuti_lambda_role"  # IAMロールの名前
 
   # 信頼ポリシー：誰がこのロールを使えるか
-  assume_role_policy = jsonencode({
+  assume_role_policy = jsonencode({　#jsoncodeはお決まりの言葉
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
+      Action = "sts:AssumeRole"　#一時的に許可する的な感じ
       Effect = "Allow"
       Principal = {
-        Service = "lambda.amazonaws.com"
+        Service = "lambda.amazonaws.com"　#だいたいどのサービスも〇〇.amazonaws.comと記載
       }
     }]
   })
 }
 
-# Lambda用のポリシーをIAMロールにアタッチ
+# Lambda用のポリシーをIAMロールにアタッチ　
+#ポリシーにより、「costexplorerにアクセス可能」　の部分が定義される　ロールとポリシー合体で完成
 resource "aws_iam_role_policy" "lambda_policy" {
   name = "cost_notification_lambda_policy"
   role = aws_iam_role.lambda_role.id  # 先ほど作ったロールを参照
 
-  # 実際のポリシー内容
+  # ここでcost explorerのアクセスの許可設定
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
         Effect = "Allow"
         Action = [
-          "ce:GetCostAndUsage",  # コスト情報取得の権限
-          "ce:GetCostForecast"   # コスト予測取得の権限
+          "ce:GetCostAndUsage",  # aws全体のコスト見れる
+          "ce:GetCostForecast"   # これからのコスト予測見れる
         ]
-        Resource = "*"  # すべてのリソースに対して
+        Resource = "*"  # aws全体のコスト分析したいため、見れる対象は*になる
       },
       {
         Effect = "Allow"
         Action = [
-          "logs:CreateLogGroup",
+          "logs:CreateLogGroup",　#cloudwatchログの権限を付与して、エラーおきてもログ見れるようにする
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
@@ -75,11 +77,12 @@ resource "aws_lambda_function" "cost_notification" {
   }
 }
 
-# EventBridge（旧CloudWatch Events）ルールの定義
+# EventBridge（旧CloudWatch Events）ルールの定義　
+#イベントブリッジがないと、ラムダを手動でやんなきゃいけないため、イベント稼働にする
 resource "aws_cloudwatch_event_rule" "daily_cost_check" {
   name                = "daily_cost_check"      # ルールの名前
   description         = "毎日コスト通知を実行"   # ルールの説明
-  schedule_expression = "cron(0 1 * * ? *)"     # 毎日午前1時（UTC）に実行
+  schedule_expression = "cron(0 15 * * ? *)"     # 毎日午前12時に実行
 }
 
 # EventBridgeターゲットの設定

@@ -29,23 +29,32 @@ def get_cost_data():
             ]
         )
 
-        # 月間予測コストを取得
-        forecast_response = client.get_cost_forecast(
-            TimePeriod={
-                'Start': datetime.today().strftime('%Y-%m-%d'),
-                'End': (datetime.today() + timedelta(days=30)).strftime('%Y-%m-%d')
-            },
-            Metric='UNBLENDED_COST',
-            Granularity='MONTHLY'
-        )
+        # 月間予測コストの取得（エラーハンドリング追加）
+        try:
+            forecast_response = client.get_cost_forecast(
+                TimePeriod={
+                    'Start': datetime.today().strftime('%Y-%m-%d'),
+                    'End': (datetime.today() + timedelta(days=30)).strftime('%Y-%m-%d')
+                },
+                Metric='UNBLENDED_COST',
+                Granularity='MONTHLY'
+            )
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'DataUnavailableException':
+                print("予測データが利用できません。現在のコストのみ表示します。")
+                forecast_response = {
+                    'Total': {
+                        'Amount': "N/A",
+                        'Unit': 'USD'
+                    }
+                }
+            else:
+                raise
         
         return {
             'daily_cost': response,
             'forecast': forecast_response
         }
-    except ClientError as e:
-        print(f"AWS API Error: {str(e)}")
-        raise
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
         raise
@@ -66,6 +75,13 @@ def format_cost_message(cost_data):
     # コストの高い順にソート
     service_costs.sort(key=lambda x: x[1], reverse=True)
     
+    # 予測コストの取得（エラー時は "データ不足" と表示）
+    forecast_amount = forecast['Total']['Amount']
+    if forecast_amount == "N/A":
+        forecast_display = "データ不足"
+    else:
+        forecast_display = f"${float(forecast_amount):.2f}"
+    
     # メッセージブロックの作成
     blocks = [
         {
@@ -85,7 +101,7 @@ def format_cost_message(cost_data):
                 },
                 {
                     "type": "mrkdwn",
-                    "text": f"*今月の予測総額:*\n${float(forecast['Total']['Amount']):.2f}"
+                    "text": f"*今月の予測総額:*\n{forecast_display}"
                 }
             ]
         },
